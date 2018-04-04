@@ -1,0 +1,86 @@
+---
+title: "Reproducible Research Project 1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+###What is mean total number of steps taken per day?
+
+```{r load, echo=TRUE}
+data<-read.csv("activity.csv")
+stepsPerDay<-aggregate(steps~date,data,sum)
+hist(stepsPerDay$steps,breaks=20,xlab = "Steps per Day", main = "Histogram of Steps per Day")
+
+```
+
+
+
+```{r stats, echo=TRUE}
+library(knitr)
+library(kableExtra)
+stats<-data.frame(c("Mean","Median","Total"),c(mean(stepsPerDay$steps),median(stepsPerDay$steps),sum(stepsPerDay$steps)))
+colnames(stats)<-c('stat','steps')
+stats$steps<-round(stats$steps,0)
+kable(stats, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+###What is the average daily activity pattern?
+
+```{r intervals, echo=TRUE}
+intervals<-aggregate(steps~interval,data,sum)
+plot(intervals$interval,intervals$steps,type='l',xlab = 'Interval',ylab = 'Steps',main = 'Steps over daily 5 minute intervals')
+m<-intervals[which.max(intervals$steps),]
+```
+
+The interval with the maximum number of steps is `r m[1]`
+
+
+###Imputing missing values
+```{r missing_count, echo=TRUE}
+naCountSteps<-sum(is.na(data$steps))
+```
+There are `r naCountSteps` intervals with missing step values.
+
+```{r replace_na, echo=TRUE}
+averages<-aggregate(steps~interval,data,mean,na.remove=TRUE)
+replace_na<-function(step,interval){
+  if(is.na(step))
+    return(averages[averages$interval == interval, "steps"])
+  return(step)
+}
+data_without_na<-data
+data_without_na$steps <- mapply(replace_na, data_without_na$steps, data_without_na$interval)
+stepsPerDay<-aggregate(steps~date,data_without_na,sum)
+hist(stepsPerDay$steps,breaks=20,xlab = "Steps per Day", main = "Histogram of Steps per Day (NA replaced)")
+```
+
+
+```{r,echo=TRUE}
+stats<-data.frame(c("Mean","Median"),c(mean(stepsPerDay$steps),median(stepsPerDay$steps)))
+colnames(stats)<-c('','')
+kable(stats, "html") %>%
+  kable_styling(full_width = F, position = "left")
+```
+
+###Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekdays, echo=TRUE}
+weekday <- function(date) {
+  date<-as.Date(date)
+  day<-weekdays(as.Date(date))
+  if(day %in% c('Saturday','Sunday'))
+    return('Weekend')
+  return('Weekday')
+}
+data_without_na$day <- sapply(data_without_na$date, FUN = weekday)
+averages <- aggregate(steps ~ interval + day, data = data_without_na, mean)
+library(ggplot2)
+ggplot(averages, aes(interval, steps)) + geom_line() + facet_grid(day ~ .) + 
+    xlab("Interval") + ylab("Number of steps")
+```
